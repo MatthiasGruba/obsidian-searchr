@@ -32,7 +32,7 @@ export default class ObsidianSearchrPlugin extends Plugin {
 		const port = 27123;
 		const host = '127.0.0.1';
 
-		const requestHandler = new RequestHandler();
+		const requestHandler = new RequestHandler(this.app);
 		this.server = http.createServer(requestHandler.api);
 		this.server.listen(port, host);
 
