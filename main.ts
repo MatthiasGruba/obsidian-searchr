@@ -1,18 +1,13 @@
-import { Plugin } from 'obsidian';
+import { Plugin, TFile } from 'obsidian';
 import * as http from 'http';
 import { RequestHandler } from './src/request-handler';
-
-interface ObsidianSearchrSettings {
-}
-
-const DEFAULT_SETTINGS: ObsidianSearchrSettings = {}
+import { addToIndex, loadNotes, removeFromIndex, removeFromIndexByPath } from './src/search';
 
 export default class ObsidianSearchrPlugin extends Plugin {
-	settings: ObsidianSearchrSettings;
 	server: http.Server | null = null;
 
 	async onload() {
-		await this.loadSettings();
+		await this.registerListeners();
 		this.setupServer();
 	}
 
@@ -20,51 +15,46 @@ export default class ObsidianSearchrPlugin extends Plugin {
 		this.server.close();
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-
 	private setupServer(): void {
-		const port = 27123;
+		const port = 39393;
 		const host = '127.0.0.1';
 
-		const requestHandler = new RequestHandler(this.app);
+		const requestHandler = new RequestHandler();
 		this.server = http.createServer(requestHandler.api);
 		this.server.listen(port, host);
+	}
 
-		console.log(`SearchR API listening on http://${host}/${port}`);
+	async registerListeners(): Promise<void> {
+		return new Promise((resolve) => {
+			app.workspace.onLayoutReady(async () => {
+				this.registerEvent(
+					app.vault.on('create', file => {
+						addToIndex(file)
+					}),
+				)
+				this.registerEvent(
+					app.vault.on('delete', file => {
+						removeFromIndex(file)
+					}),
+				)
+				this.registerEvent(
+					app.vault.on('modify', async file => {
+						removeFromIndex(file)
+						await addToIndex(file)
+					}),
+				)
+				this.registerEvent(
+					app.vault.on('rename', async (file, oldPath) => {
+						if (file instanceof TFile && file.path.endsWith('.md')) {
+							removeFromIndexByPath(oldPath)
+							await addToIndex(file)
+						}
+					}),
+				)
+
+				await loadNotes();
+				resolve();
+			});
+		})
 	}
 }
-
-// class SampleSettingTab extends PluginSettingTab {
-// 	plugin: MyPlugin;
-//
-// 	constructor(app: App, plugin: MyPlugin) {
-// 		super(app, plugin);
-// 		this.plugin = plugin;
-// 	}
-//
-// 	display(): void {
-// 		const { containerEl } = this;
-//
-// 		containerEl.empty();
-//
-// 		containerEl.createEl('h2', { text: 'Settings for my awesome plugin.' });
-//
-// 		new Setting(containerEl)
-// 			.setName('Setting #1')
-// 			.setDesc('It\'s a secret')
-// 			.addText(text => text
-// 				.setPlaceholder('Enter your secret')
-// 				.setValue(this.plugin.settings.mySetting)
-// 				.onChange(async (value) => {
-// 					console.log('Secret: ' + value);
-// 					this.plugin.settings.mySetting = value;
-// 					await this.plugin.saveSettings();
-// 				}));
-// 	}
-// }
